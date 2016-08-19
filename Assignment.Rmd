@@ -1,0 +1,87 @@
+---
+title: "Barbell lifts analysis"
+author: "LC"
+date: "7 août 2016"
+output: html_document
+---
+
+##Executive summary
+The goal of this report was to try and predict in which position 6 subjects performed their barbell lifts.
+
+I have chosen to work with random forests and my different attempts showed that a good performance of the model could be obtained with only 50 trees.
+
+```{r, echo = TRUE, results='hide'}
+setwd("/Users/laurecasanova/Dropbox/Programmation/8_Practical_Machine_Learning/Assignment")
+library(caret)
+library(doMC)
+library(randomForest)
+library(rpart)
+```
+
+
+##Exploratory analysis and pre-processing
+The data set accounts for 160 variables and 19622 different barbell lifts. 
+
+```{r, echo = TRUE, results='hide'}
+fileUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+file1 <- download.file(fileUrl, destfile = "./pml-training.csv")
+training0 <- read.csv(file = "./pml-training.csv")
+```
+First of, we are going to split our dataset into a training set and a testing set to be able to evaluate our model. The summary reveals two things : 
+* That several variables seem to have very limited variance
+* That several variables have a lot of NAs which will have to be further analysed and dealt with appropriately.
+
+```{r, echo = TRUE, results='hide'}
+set.seed(12315)
+inTrain <- createDataPartition(y=training0$classe, 
+                               p= 0.6, list = FALSE)
+training1 <- training0[inTrain,]
+testing <- training0[-inTrain,]
+summary(training1)
+
+```
+
+#Near zero variance
+To confirm our first assumption, we are going to use Caret's nearZeroVar function, as having many variables with almost no variance could have an incorrect influence on our model. 54 variables have near zero variance.
+
+```{r, echo = TRUE, results='hide'}
+near_zero <- nearZeroVar(training1)
+```
+
+#NAs
+Our analysis of the NAs has confirmed that 67 variables have more than 90% of NAs which will be fixed with using the na.roughfix function. Afterwards, we exclude the remaining variables which have a near zero variation and are left with 25 variables.
+```{r, echo = TRUE, results='hide'}
+col_na <- as.data.frame((colSums(is.na(training1)))/nrow(training1)*100)
+colnames(col_na) <- c("percent_na")
+col_na$flag<- ifelse(col_na$percent_na > 90, "YES", "NO")
+col_na2 <- col_na[col_na$flag == "YES",]
+dim(col_na2)
+training2 <- na.roughfix(training1)
+
+training3 <- training2[,-near_zero]
+```
+
+
+
+##Model
+I chose to work with random forests, my model is based on the 25 features which were not excluded during the preprocessing stage of the analysis. I tried different options and it seems that 50 trees is enough to get a very good accuracy without it being too time consuming. I worked with repeated cross validations to select the best forest with only 50 trees.The error rate ended up being 0.86% which is satisfactory and the plot below shows that this error rate was reached at about 25 trees. So if we had stopped at about 30 trees we would have ended up with more or less the same results.
+```{r, echo = TRUE, results='hide'} 
+registerDoMC(cores = 3)
+
+ctrl <- trainControl("repeatedcv", number=10, repeats=5, classProbs=TRUE, savePred=T)
+
+fit_rf <- train(classe ~., data = training3, 
+                method = "rf", 
+                ntree = 50, 
+                trControl = ctrl,
+                tuneGrid=data.frame(mtry=3)
+)
+fit_rf$finalModel
+plot(fit_rf$finalModel)
+```
+
+##Validation with our testing set
+The model was then applied to our testing set and the confusion matrix reveals that the accuracy of the model if 0.99 which is very satisfactory.
+
+## Conclusion
+The model was finally used for the quiz to predict the "classe" of the test set and it scored 20 out of 20.
