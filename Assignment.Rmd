@@ -76,6 +76,8 @@ fit_rf <- train(classe ~., data = training3,
                 trControl = ctrl,
                 tuneGrid=data.frame(mtry=3)
 )
+```
+```{r, echo = TRUE} 
 fit_rf$finalModel
 plot(fit_rf$finalModel)
 ```
